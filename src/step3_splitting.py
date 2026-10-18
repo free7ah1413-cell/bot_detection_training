@@ -1,5 +1,5 @@
 """
-Step 3: Three splitting strategies - random, temporal, entity (by IP).
+Step 3: Four splitting strategies - random, temporal, IP-entity, User-Agent-entity.
 """
 from __future__ import annotations
 
@@ -82,6 +82,26 @@ def entity_split(df):
     return train, val, test
 
 
+def ua_entity_split(df):
+    print("\n--- Strategy 4: Entity-Based Split (by User-Agent) ---")
+    unique_uas = np.array(df["useragent"].fillna("").unique())
+    rng = np.random.RandomState(RANDOM_SEED)
+    rng.shuffle(unique_uas)
+    n_ua = len(unique_uas)
+    train_end = int(n_ua * TRAIN_RATIO)
+    val_end = int(n_ua * (TRAIN_RATIO + VAL_RATIO))
+    ua = df["useragent"].fillna("")
+    train = df[ua.isin(set(unique_uas[:train_end]))]
+    val = df[ua.isin(set(unique_uas[train_end:val_end]))]
+    test = df[ua.isin(set(unique_uas[val_end:]))]
+    _print_sizes(train, val, test)
+    assert set(train["useragent"].fillna("")) & set(test["useragent"].fillna("")) == set()
+    assert set(train["useragent"].fillna("")) & set(val["useragent"].fillna("")) == set()
+    assert set(val["useragent"].fillna("")) & set(test["useragent"].fillna("")) == set()
+    print("  [OK] No User-Agent leakage between partitions")
+    return train, val, test
+
+
 def _print_sizes(train, val, test):
     for name, part in [("Train", train), ("Val", val), ("Test", test)]:
         cs = int((part["traffic_class"] == 2).sum())
@@ -97,7 +117,8 @@ def main():
     df["session_start"] = pd.to_datetime(df["session_start"], utc=True)
     print(f"Loaded {len(df):,} sessions | features: {len(feature_columns(df))}")
 
-    strategies = {"random": random_split, "temporal": temporal_split, "entity": entity_split}
+    strategies = {"random": random_split, "temporal": temporal_split, "entity": entity_split,
+                  "ua_entity": ua_entity_split}
     summary = {}
     for name, fn in strategies.items():
         train, val, test = fn(df)

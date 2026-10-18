@@ -1,7 +1,7 @@
 """
-Step 4: Train 4 models x 3 split strategies and evaluate the binary bot task.
+Step 4: Train 5 models x 4 split strategies and evaluate the binary bot task.
 
-Models: Logistic Regression, Random Forest, XGBoost, Isolation Forest.
+Models: Logistic Regression, Random Forest, XGBoost, LightGBM, Isolation Forest.
 Hyperparameters are selected on the validation partition only; the test
 partition is used exactly once, for the final reported metrics.
 """
@@ -16,6 +16,7 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
+import lightgbm as lgb
 import xgboost as xgb
 from sklearn.ensemble import IsolationForest, RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
@@ -89,6 +90,12 @@ PARAM_GRIDS = {
         {"n_estimators": 300, "max_depth": 8, "learning_rate": 0.05, "subsample": 0.8},
         {"n_estimators": 400, "max_depth": 10, "learning_rate": 0.05, "subsample": 0.9},
     ],
+    "LightGBM": [
+        {"n_estimators": 200, "num_leaves": 31, "learning_rate": 0.1},
+        {"n_estimators": 300, "num_leaves": 63, "learning_rate": 0.05},
+        {"n_estimators": 300, "num_leaves": 127, "learning_rate": 0.05},
+        {"n_estimators": 400, "num_leaves": 63, "learning_rate": 0.03},
+    ],
     "Isolation Forest": [
         {"n_estimators": 200, "max_samples": 256},
         {"n_estimators": 300, "max_samples": 512},
@@ -120,6 +127,15 @@ def build_xgboost(params, y_train):
     )
 
 
+def build_lightgbm(params, y_train):
+    n_pos = max(int(y_train.sum()), 1)
+    n_neg = len(y_train) - n_pos
+    return lgb.LGBMClassifier(
+        scale_pos_weight=n_neg / n_pos, subsample=0.8, subsample_freq=1,
+        random_state=RANDOM_SEED, n_jobs=-1, verbose=-1, **params,
+    )
+
+
 def build_isolation_forest(params, y_train):
     contamination = float(np.clip(y_train.mean(), 0.01, 0.5))
     return IsolationForest(
@@ -131,6 +147,7 @@ MODEL_BUILDERS = {
     "Logistic Regression": build_logistic_regression,
     "Random Forest": build_random_forest,
     "XGBoost": build_xgboost,
+    "LightGBM": build_lightgbm,
     "Isolation Forest": build_isolation_forest,
 }
 
@@ -264,13 +281,13 @@ def main():
         def _f1(s):
             v = m[m["split_strategy"] == s]["f1_score"].values
             return float(v[0]) if len(v) else float("nan")
-        r, t, e = _f1("random"), _f1("temporal"), _f1("entity")
-        print(f"  {model_name}: random={r:.4f} temporal={t:.4f} (d{r-t:+.4f}) entity={e:.4f} (d{r-e:+.4f})")
+        r, t, e, u = _f1("random"), _f1("temporal"), _f1("entity"), _f1("ua_entity")
+        print(f"  {model_name}: random={r:.4f} temporal={t:.4f} (d{r-t:+.4f}) ip_entity={e:.4f} (d{r-e:+.4f}) ua_entity={u:.4f} (d{r-u:+.4f})")
 
     for strategy in SPLIT_STRATEGIES:
         train = pd.read_parquet(SPLITS_DIR / f"{strategy}_train.parquet")
         cols = feature_columns(train)
-        for model_name in ["Random Forest", "XGBoost"]:
+        for model_name in ["Random Forest", "XGBoost", "LightGBM"]:
             path = MODELS_DIR / f"{model_name.lower().replace(' ', '_')}_{strategy}.joblib"
             if not path.exists():
                 continue

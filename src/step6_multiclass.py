@@ -17,6 +17,7 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
+import lightgbm as lgb
 import xgboost as xgb
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
@@ -71,6 +72,11 @@ def build_models(y_train):
             objective="multi:softprob", num_class=len(CLASS_NAMES),
             eval_metric="mlogloss", tree_method="hist",
             random_state=RANDOM_SEED, n_jobs=-1,
+        ),
+        "LightGBM": lgb.LGBMClassifier(
+            n_estimators=300, num_leaves=63, learning_rate=0.05, subsample=0.8,
+            subsample_freq=1, objective="multiclass", class_weight="balanced",
+            random_state=RANDOM_SEED, n_jobs=-1, verbose=-1,
         ),
     }
 

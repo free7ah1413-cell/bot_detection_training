@@ -17,6 +17,7 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
+import lightgbm as lgb
 import xgboost as xgb
 from scipy.stats import binomtest
 from sklearn.ensemble import RandomForestClassifier
@@ -42,6 +43,7 @@ MODEL_SLUGS = {
     "Logistic Regression": "logistic_regression",
     "Random Forest": "random_forest",
     "XGBoost": "xgboost",
+    "LightGBM": "lightgbm",
     "Isolation Forest": "isolation_forest",
 }
 
@@ -112,13 +114,19 @@ def seed_stability(strategy):
     scale_pos = (len(y_train) - n_pos) / n_pos
 
     out = {}
-    for name in ["Random Forest", "XGBoost"]:
+    for name in ["Random Forest", "XGBoost", "LightGBM"]:
         scores = []
         for seed in SEEDS:
             if name == "Random Forest":
                 m = RandomForestClassifier(
                     n_estimators=300, max_depth=20, min_samples_leaf=1, min_samples_split=5,
                     class_weight="balanced", random_state=seed, n_jobs=-1,
+                )
+            elif name == "LightGBM":
+                m = lgb.LGBMClassifier(
+                    n_estimators=300, num_leaves=63, learning_rate=0.05, subsample=0.8,
+                    subsample_freq=1, scale_pos_weight=scale_pos,
+                    random_state=seed, n_jobs=-1, verbose=-1,
                 )
             else:
                 m = xgb.XGBClassifier(
@@ -197,10 +205,10 @@ def main():
     overlap_rows = []
     for model_name in ci["model"].unique():
         sub = ci[ci["model"] == model_name].set_index("split_strategy")
-        if not {"random", "temporal", "entity"}.issubset(sub.index):
+        if not {"random", "temporal", "entity", "ua_entity"}.issubset(sub.index):
             continue
         r = sub.loc["random"]
-        for other in ["temporal", "entity"]:
+        for other in ["temporal", "entity", "ua_entity"]:
             o = sub.loc[other]
             overlaps = not (r["f1_ci_low"] > o["f1_ci_high"] or o["f1_ci_low"] > r["f1_ci_high"])
             overlap_rows.append({

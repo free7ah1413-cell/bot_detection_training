@@ -31,7 +31,7 @@ SESSION_TIMEOUT_SEC = 30 * 60  # 30 minutes
 TRAIN_RATIO = 0.70
 VAL_RATIO = 0.10
 TEST_RATIO = 0.20
-SPLIT_STRATEGIES = ["random", "temporal", "entity"]
+SPLIT_STRATEGIES = ["random", "temporal", "entity", "ua_entity"]
 
 # Class encoding for the three-class task
 CLASS_HUMAN, CLASS_BOT, CLASS_STUFFING = 0, 1, 2
