@@ -29,11 +29,12 @@ STEPS = {
     6: ("step6_multiclass.py", "Three-Class Detection (Human/Bot/Stuffing)"),
     7: ("step7_ablation.py", "Feature-Set Ablation"),
     8: ("step8_statistical_validation.py", "Statistical & Robustness Validation"),
+    9: ("step9_stuffing_analysis.py", "Stuffing CIs & Rule-Adjacent Ablation"),
     5: ("step5_shap_analysis.py", "SHAP + Thesis Figures"),
 }
 
 # Execution order (figures are produced last so they can read every result file)
-DEFAULT_ORDER = [1, 2, 3, 4, 6, 7, 8, 5]
+DEFAULT_ORDER = [1, 2, 3, 4, 6, 7, 8, 9, 5]
 
 
 def run_step(n: int) -> bool:
@@ -80,6 +81,7 @@ def main():
     for n, ok in results.items():
         print(f"  Step {n}: {STEPS[n][1]} -- {'OK' if ok else 'FAIL'}")
     print(f"Total: {(time.time() - t0)/60:.1f} min")
+    pipeline_ok = all(results.values())
 
     out = PROJECT_ROOT / "output"
     if out.exists():
@@ -90,6 +92,9 @@ def main():
                 rel = p.relative_to(out)
                 label = f"{size/1024**2:.1f} MB" if size > 1024**2 else f"{size/1024:.0f} KB"
                 print(f"  {rel} ({label})")
+
+    if not pipeline_ok:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

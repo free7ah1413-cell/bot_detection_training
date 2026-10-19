@@ -60,8 +60,8 @@ def build_models(y_train):
     """Class-weighted models; XGBoost receives explicit per-sample weights."""
     return {
         "Logistic Regression": LogisticRegression(
-            max_iter=2000, class_weight="balanced", multi_class="multinomial",
-            random_state=RANDOM_SEED, n_jobs=-1,
+            max_iter=2000, class_weight="balanced",
+            random_state=RANDOM_SEED,
         ),
         "Random Forest": RandomForestClassifier(
             n_estimators=300, max_depth=20, min_samples_leaf=1, min_samples_split=5,
@@ -140,10 +140,14 @@ def main():
         for model_name, model in build_models(y_train).items():
             print(f"\n  Training: {model_name}...")
             t0 = time.time()
-            if model_name == "XGBoost":
-                model.fit(X_train_s, y_train, sample_weight=sample_weights(y_train))
-            else:
-                model.fit(X_train_s, y_train)
+            try:
+                if model_name == "XGBoost":
+                    model.fit(X_train_s, y_train, sample_weight=sample_weights(y_train))
+                else:
+                    model.fit(X_train_s, y_train)
+            except Exception as exc:  # e.g. a class absent from the training partition
+                print(f"    SKIPPED {model_name} on {strategy}: {exc}")
+                continue
             elapsed = time.time() - t0
 
             slug = model_name.lower().replace(" ", "_")
@@ -192,10 +196,13 @@ def main():
 
         # Detailed report for the strongest configuration on this split
         print("\n  Classification report (Random Forest):")
-        rf = joblib.load(MODELS_DIR / f"mc_random_forest_{strategy}.joblib")
-        print(classification_report(
-            y_test, rf.predict(X_test_s), target_names=CLASS_NAMES, zero_division=0, digits=4
-        ))
+        rf_path = MODELS_DIR / f"mc_random_forest_{strategy}.joblib"
+        if rf_path.exists():
+            rf = joblib.load(rf_path)
+            print(classification_report(
+                y_test, rf.predict(X_test_s), labels=list(range(len(CLASS_NAMES))),
+                target_names=CLASS_NAMES, zero_division=0, digits=4
+            ))
 
     summary = pd.DataFrame(summary_rows)
     summary.to_csv(RESULTS_DIR / "multiclass_results.csv", index=False)

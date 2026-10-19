@@ -152,9 +152,10 @@ def plot_comparative_performance():
             continue
         pivot = results.pivot_table(values=metric, index="model", columns="split_strategy")
         x = np.arange(len(pivot.index))
-        width = 0.25
-        colors = ["#3498db", "#e74c3c", "#2ecc71"]
-        for i, strategy in enumerate(["random", "temporal", "entity"]):
+        n_split = len(SPLIT_STRATEGIES)
+        width = 0.8 / n_split
+        colors = ["#3498db", "#e74c3c", "#2ecc71", "#f39c12"]
+        for i, strategy in enumerate(SPLIT_STRATEGIES):
             if strategy not in pivot.columns:
                 continue
             vals = pivot[strategy].values
@@ -162,7 +163,7 @@ def plot_comparative_performance():
             for bar, val in zip(bars, vals):
                 ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.005,
                         f"{val:.3f}", ha="center", va="bottom", fontsize=8)
-        ax.set_xticks(x + width)
+        ax.set_xticks(x + width * (n_split - 1) / 2)
         ax.set_xticklabels(pivot.index, rotation=30, ha="right")
         ax.set_ylabel(title)
         ax.set_title(f"{title} by Model and Split")
@@ -190,7 +191,8 @@ def plot_confusion_matrices():
     print("  confusion matrices...")
     results = pd.read_csv(RESULTS_DIR / "all_results.csv")
     models = list(results["model"].dropna().unique())
-    fig, axes = plt.subplots(len(models), 3, figsize=(15, 4.5 * len(models)))
+    n_split = len(SPLIT_STRATEGIES)
+    fig, axes = plt.subplots(len(models), n_split, figsize=(5 * n_split, 4.5 * len(models)))
     if len(models) == 1:
         axes = np.array([axes])
     for row, model_name in enumerate(models):
@@ -236,14 +238,15 @@ def plot_feature_importance():
 
 def plot_roc_curves():
     print("  ROC curves...")
-    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+    fig, axes = plt.subplots(1, len(SPLIT_STRATEGIES), figsize=(6 * len(SPLIT_STRATEGIES), 5))
     model_files = {
         "Logistic Regression": "logistic_regression",
         "Random Forest": "random_forest",
         "XGBoost": "xgboost",
+        "LightGBM": "lightgbm",
         "Isolation Forest": "isolation_forest",
     }
-    colors = ["#3498db", "#2ecc71", "#e74c3c", "#9b59b6"]
+    colors = ["#3498db", "#2ecc71", "#e74c3c", "#f39c12", "#9b59b6"]
     for col, strategy in enumerate(SPLIT_STRATEGIES):
         ax = axes[col]
         test = pd.read_parquet(SPLITS_DIR / f"{strategy}_test.parquet")
@@ -542,11 +545,11 @@ def plot_ablation():
     order = ["Request-level", "Session-level", "Combined", "Combined + UA (circular)"]
     order = [o for o in order if o in df["feature_set"].unique()]
 
-    fig, axes = plt.subplots(1, 3, figsize=(19, 5.5), sharey=True)
+    fig, axes = plt.subplots(1, len(SPLIT_STRATEGIES), figsize=(6.4 * len(SPLIT_STRATEGIES), 5.5), sharey=True)
     colors = ["#95a5a6", "#3498db", "#16a085", "#c0392b"]
     for ax, strategy in zip(axes, SPLIT_STRATEGIES):
         sub = df[df["split_strategy"] == strategy]
-        models = [m for m in ["Logistic Regression", "Random Forest", "XGBoost"]
+        models = [m for m in ["Logistic Regression", "Random Forest", "XGBoost", "LightGBM"]
                   if m in sub["model"].unique()]
         x = np.arange(len(models))
         width = 0.8 / max(len(order), 1)
@@ -578,12 +581,12 @@ def plot_bootstrap_ci():
         return
     print("  bootstrap confidence intervals...")
     df = pd.read_csv(path)
-    models = [m for m in ["Logistic Regression", "Random Forest", "XGBoost", "Isolation Forest"]
+    models = [m for m in ["Logistic Regression", "Random Forest", "XGBoost", "LightGBM", "Isolation Forest"]
               if m in df["model"].unique()]
-    colors = {"random": "#3498db", "temporal": "#e74c3c", "entity": "#2ecc71"}
+    colors = {"random": "#3498db", "temporal": "#e74c3c", "entity": "#2ecc71", "ua_entity": "#f39c12"}
 
     fig, ax = plt.subplots(figsize=(11, 6))
-    offsets = {"random": -0.25, "temporal": 0.0, "entity": 0.25}
+    offsets = {"random": -0.3, "temporal": -0.1, "entity": 0.1, "ua_entity": 0.3}
     for strategy, off in offsets.items():
         sub = df[df["split_strategy"] == strategy].set_index("model")
         xs, ys, errs = [], [], []
@@ -619,7 +622,8 @@ def plot_circularity():
     fig, ax = plt.subplots(figsize=(11, 6))
     models = df["model"].unique()
     x = np.arange(len(models))
-    width = 0.25
+    n_split = len(SPLIT_STRATEGIES)
+    width = 0.8 / n_split
     for i, strategy in enumerate(SPLIT_STRATEGIES):
         vals = []
         for m in models:
@@ -629,7 +633,7 @@ def plot_circularity():
         for bar, v in zip(bars, vals):
             ax.text(bar.get_x() + bar.get_width() / 2, v + 0.0015, f"{v:+.3f}",
                     ha="center", va="bottom", fontsize=8)
-    ax.set_xticks(x + width)
+    ax.set_xticks(x + width * (n_split - 1) / 2)
     ax.set_xticklabels(models, rotation=15, ha="right")
     ax.set_ylabel("F1 inflation from label-correlated features")
     ax.set_title("Circularity Effect: adding User-Agent descriptors that encode the label")
